@@ -20,6 +20,13 @@ struct process {
     /* Student's code goes here (Preemptive Scheduler | System Call). */
 
     /* Add new fields for lifecycle statistics, MLFQ or process sleep. */
+    int creation_time;
+    int response_time_microseconds;
+    int cpu_time_microseconds;
+    int interrupt_count;
+    int start_time;
+    int mlfq_level;
+    int mlfq_remaining_runtime_microseconds;
 
     /* Student's code ends here. */
 };

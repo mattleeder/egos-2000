@@ -89,14 +89,28 @@ static void proc_yield() {
      * [System Call & Protection]
      * Do not schedule a process that should still be sleeping at this time. */
 
+    int cpu_time_this_cycle_microseconds = mtime_get() - proc_set[curr_proc_idx].start_time;
+    proc_set[curr_proc_idx].interrupt_count++;
+    proc_set[curr_proc_idx].cpu_time_microseconds += cpu_time_this_cycle_microseconds;
+    mlfq_update_level(&proc_set[curr_proc_idx], cpu_time_this_cycle_microseconds);
+    mlfq_reset_level();
+// 
     int next_idx = MAX_NPROCESS;
+    int lowest_mlfq_level = __INT_MAX__;
     for (uint i = 1; i <= MAX_NPROCESS; i++) {
         struct process* p = &proc_set[(curr_proc_idx + i) % MAX_NPROCESS];
         if (p->status == PROC_PENDING_SYSCALL) proc_try_syscall(p);
 
+        if (p->mlfq_level >= lowest_mlfq_level) {
+            continue;
+        }
+
         if (p->status == PROC_READY || p->status == PROC_RUNNABLE) {
             next_idx = (curr_proc_idx + i) % MAX_NPROCESS;
-            break;
+            lowest_mlfq_level = proc_set[next_idx].mlfq_level;
+            if (lowest_mlfq_level == 0) {
+                break;
+            }
         }
     }
 
@@ -105,6 +119,10 @@ static void proc_yield() {
          * Measure and record lifecycle statistics for the *next* process.
          * [System Call & Protection | Multicore & Locks]
          * Modify mstatus.MPP to enter machine or user mode after mret. */
+        if (proc_set[next_idx].status == PROC_READY) {
+            proc_set[next_idx].response_time_microseconds = mtime_get() - proc_set[next_idx].creation_time;
+        }
+        proc_set[next_idx].start_time = mtime_get();
 
     } else {
         /* [Multicore & Locks]
