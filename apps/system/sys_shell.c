@@ -50,7 +50,7 @@ int main() {
             } else {
                 grass->sys_send(GPID_PROCESS, (void*)&req, sizeof(req));
                 grass->sys_recv(GPID_PROCESS, NULL, (void*)&reply,
-                                sizeof(reply));
+                sizeof(reply));
 
                 if (reply.type != CMD_OK)
                     INFO("sys_shell: command %s not found", req.argv[0]);

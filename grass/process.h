@@ -28,6 +28,7 @@ struct process {
     int mlfq_level;
     int mlfq_remaining_runtime_microseconds;
 
+    int sleep_until;
     /* Student's code ends here. */
 };
 #define MAX_NPROCESS 16

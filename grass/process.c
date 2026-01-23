@@ -39,6 +39,8 @@ int proc_alloc() {
             proc_set[i].start_time = 0;
             proc_set[i].mlfq_level = 0;
             proc_set[i].mlfq_remaining_runtime_microseconds = MLFQ_LEVEL_RUNTIME(0);
+            
+            proc_set[i].sleep_until = 0;
 
             /* Student's code ends here. */
             return curr_pid;
@@ -111,7 +113,7 @@ void mlfq_reset_level() {
     if (!earth->tty_input_empty()) {
         /* Reset the level of GPID_SHELL if there is pending keyboard input. */
         for (uint i = 0; i < MAX_NPROCESS; i++) {// @TODO: 0 or 1?
-            if (proc_set[i].pid <= GPID_SHELL) {
+            if (proc_set[i].pid == GPID_SHELL) {
                 proc_set[i].mlfq_level = 0;
                 proc_set[i].mlfq_remaining_runtime_microseconds = MLFQ_LEVEL_RUNTIME(0);
                 break;
@@ -135,6 +137,16 @@ void mlfq_reset_level() {
 
 void proc_sleep(int pid, uint usec) {
     /* Student's code goes here (System Call & Protection). */
+    struct process *current;
+
+    for (uint i = 0; i < MAX_NPROCESS; i++) {
+        if (proc_set[i].pid == pid) {
+            current = &proc_set[i];
+            break;
+        }
+    }
+
+    current->sleep_until = mtime_get() + usec;
 
     /* Update the sleep-related fields in the struct process for process pid. */
 

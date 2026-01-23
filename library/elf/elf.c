@@ -53,26 +53,26 @@ void elf_load(int pid, elf_reader reader, int argc, void** argv) {
         /* Numbers printed should match the numbers in build/debug/sys_*.lst. */
         if (pid <= GPID_SHELL) INFO("Load 0x%x bytes to 0x%x", filesz, addr);
     }
-
+    
     /* Setup a page for main() arguments (argc and argv). */
     uint ppage_id = earth->mmu_alloc();
     earth->mmu_map(pid, APPS_ARG / PAGE_SIZE, ppage_id);
-
+    
     int* argc_addr = (int*)PAGE_ID_TO_ADDR(ppage_id);
     int* argv_addr = argc_addr + 1;
     int* args_addr = argv_addr + CMD_NARGS;
-
+    
     /* Initialize argc and argv. */
     *argc_addr = argc;
     if (argv) memcpy(args_addr, argv, argc * CMD_ARG_LEN);
     for (uint i = 0; i < argc; i++)
-        argv_addr[i] = APPS_ARG + sizeof(uint) /* argc */ +
-                       sizeof(void*) * CMD_NARGS /* argv */ + i * CMD_ARG_LEN;
-
+    argv_addr[i] = APPS_ARG + sizeof(uint) /* argc */ +
+    sizeof(void*) * CMD_NARGS /* argv */ + i * CMD_ARG_LEN;
+    
     /* Setup a page for system call arguments. */
     ppage_id = earth->mmu_alloc();
     earth->mmu_map(pid, SYSCALL_ARG / PAGE_SIZE, ppage_id);
-
+    
     /* Setup 2 pages for user stack (enough for teaching purpose). */
     for (uint i = 1; i <= 2; i++) {
         ppage_id = earth->mmu_alloc();

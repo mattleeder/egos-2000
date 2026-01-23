@@ -37,6 +37,9 @@ void kernel_entry() {
 
     /* Restore the process context. */
     asm("csrw mepc, %0" ::"r"(proc_set[curr_proc_idx].mepc));
+
+    // CRITICAL("JUMPING TO: %x", proc_set[curr_proc_idx].mepc);
+
     memcpy((void*)(EGOS_STACK_TOP - 32 * 4), curr_saved, 32 * 4);
 }
 
@@ -53,7 +56,6 @@ static void excp_entry(uint id) {
         memcpy(&proc_set[curr_proc_idx].syscall, (void*)syscall_paddr,
                sizeof(struct syscall));
         proc_set[curr_proc_idx].syscall.status = PENDING;
-
         proc_set_pending(curr_pid);
         proc_set[curr_proc_idx].mepc += 4;
         proc_try_syscall(&proc_set[curr_proc_idx]);
@@ -61,8 +63,19 @@ static void excp_entry(uint id) {
         return;
     }
     /* Student's code goes here (System Call & Protection | Virtual Memory). */
-
+    
     /* Kill the current process if curr_pid is a user application. */
+    if (curr_pid >= GPID_USER_START) {
+        INFO("process %d terminated with exception %d", curr_pid, id);
+
+        // @TODO: not sure if this is correct but calling proc_free directly seems to make shell hang
+        struct proc_request req;
+        req.type = PROC_EXIT;
+        sys_send(GPID_PROCESS, (void*)&req, sizeof(req));
+
+        proc_yield();
+        return;
+    }
 
     /* Student's code ends here. */
     FATAL("excp_entry: kernel got exception %d", id);
@@ -73,6 +86,8 @@ static void intr_entry(uint id) {
     /* Student's code goes here (Preemptive Scheduler). */
 
     /* Update the process lifecycle statistics. */
+    struct process *curr_proc = &proc_set[curr_proc_idx];
+    curr_proc->interrupt_count++;
 
     /* Student's code ends here. */
     proc_yield();
@@ -90,55 +105,72 @@ static void proc_yield() {
      * Do not schedule a process that should still be sleeping at this time. */
 
     int cpu_time_this_cycle_microseconds = mtime_get() - proc_set[curr_proc_idx].start_time;
-    proc_set[curr_proc_idx].interrupt_count++;
     proc_set[curr_proc_idx].cpu_time_microseconds += cpu_time_this_cycle_microseconds;
     mlfq_update_level(&proc_set[curr_proc_idx], cpu_time_this_cycle_microseconds);
     mlfq_reset_level();
-// 
     int next_idx = MAX_NPROCESS;
     int lowest_mlfq_level = __INT_MAX__;
-    for (uint i = 1; i <= MAX_NPROCESS; i++) {
-        struct process* p = &proc_set[(curr_proc_idx + i) % MAX_NPROCESS];
-        if (p->status == PROC_PENDING_SYSCALL) proc_try_syscall(p);
 
-        if (p->mlfq_level >= lowest_mlfq_level) {
-            continue;
-        }
+    while (1) {
+        for (uint i = 1; i <= MAX_NPROCESS; i++) {
+            struct process* p = &proc_set[(curr_proc_idx + i) % MAX_NPROCESS];
+            if (p->status == PROC_PENDING_SYSCALL) proc_try_syscall(p);
 
-        if (p->status == PROC_READY || p->status == PROC_RUNNABLE) {
-            next_idx = (curr_proc_idx + i) % MAX_NPROCESS;
-            lowest_mlfq_level = proc_set[next_idx].mlfq_level;
-            if (lowest_mlfq_level == 0) {
-                break;
+            if (p->mlfq_level >= lowest_mlfq_level) {
+                continue;
+            }
+
+            // Do not wake sleeping process
+            if(p->sleep_until > mtime_get()) {
+                continue;
+            }
+
+            if (p->status == PROC_READY || p->status == PROC_RUNNABLE) {
+                next_idx = (curr_proc_idx + i) % MAX_NPROCESS;
+                lowest_mlfq_level = proc_set[next_idx].mlfq_level;
+                if (lowest_mlfq_level == 0) {
+                    break;
+                }
             }
         }
-    }
 
-    if (next_idx < MAX_NPROCESS) {
-        /* [Preemptive Scheduler]
-         * Measure and record lifecycle statistics for the *next* process.
-         * [System Call & Protection | Multicore & Locks]
-         * Modify mstatus.MPP to enter machine or user mode after mret. */
-        if (proc_set[next_idx].status == PROC_READY) {
-            proc_set[next_idx].response_time_microseconds = mtime_get() - proc_set[next_idx].creation_time;
+        if (next_idx < MAX_NPROCESS) {
+            /* [Preemptive Scheduler]
+            * Measure and record lifecycle statistics for the *next* process.
+            * [System Call & Protection | Multicore & Locks]
+            * Modify mstatus.MPP to enter machine or user mode after mret. */
+
+            // @TODO: commented out for P4
+            // if (proc_set[next_idx].pid < GPID_USER_START) {
+            //     // Set mstatus.MPP to 11 (Machine mode)
+            //     CRITICAL("Machine mode");
+            //     asm("csrs mstatus, %0" ::"r"(3 << 11));
+            // } else {
+            //     // Set mstatus.MPP to 00 (User mode)
+            //     CRITICAL("User mode");
+            //     asm("csrc mstatus, %0" ::"r"(3 << 11));
+            // }
+            
+            if (proc_set[next_idx].status == PROC_READY) {
+                proc_set[next_idx].response_time_microseconds = mtime_get() - proc_set[next_idx].creation_time;
+            }
+            proc_set[next_idx].start_time = mtime_get();
+            break;
+
+        } else {
+            /* [Multicore & Locks]
+            * Release the kernel lock.
+            * [Multicore & Locks | System Call & Protection]
+            * Set curr_proc_idx to 0; Reset the timer;
+            * Enable interrupts by setting the mstatus.MIE bit to 1;
+            * Wait for the next interrupt using the wfi instruction. */
         }
-        proc_set[next_idx].start_time = mtime_get();
-
-    } else {
-        /* [Multicore & Locks]
-         * Release the kernel lock.
-         * [Multicore & Locks | System Call & Protection]
-         * Set curr_proc_idx to 0; Reset the timer;
-         * Enable interrupts by setting the mstatus.MIE bit to 1;
-         * Wait for the next interrupt using the wfi instruction. */
-
-        FATAL("proc_yield: no process to run on core %d", core_in_kernel);
     }
     /* Student's code ends here. */
-
     curr_proc_idx = next_idx;
     earth->mmu_switch(curr_pid);
     earth->mmu_flush_cache();
+
     if (curr_status == PROC_READY) {
         /* Setup argc, argv and program counter for a newly created process. */
         curr_saved[0]                = APPS_ARG;

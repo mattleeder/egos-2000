@@ -9,6 +9,7 @@
 
 #include "egos.h"
 #include <string.h>
+#include <servers.h>
 
 #define PAGE_SIZE          4096
 #define PAGE_NO_TO_ADDR(x) (char*)(x * PAGE_SIZE)
@@ -31,9 +32,18 @@ uint mmu_alloc() {
 }
 
 void mmu_free(int pid) {
+    int page_count = 0;
+    int page_table_count = 0;
     for (uint i = 0; i < APPS_PAGES_CNT; i++)
-        if (page_info_table[i].use && page_info_table[i].pid == pid)
+        if (page_info_table[i].use && page_info_table[i].pid == pid) {
+            if (page_info_table[i].vpage_no == 0)  {
+                page_table_count++;
+            }
+            
             memset(&page_info_table[i], 0, sizeof(struct page_info));
+            page_count++;
+        }
+    INFO("mmu_free released %d pages (%d are page tables) for process %d", page_count, page_table_count, pid);
 }
 
 void soft_tlb_map(int pid, uint vpage_no, uint ppage_id) {
@@ -66,6 +76,7 @@ uint soft_tlb_translate(int pid, uint vaddr) {
 }
 
 /* The code below creates an identity map using page tables (RISC-V Sv32). */
+#define SUPERVISOR_RWX (0x1F);
 #define USER_RWX     (0xC0 | 0x1F)
 #define MAX_NPROCESS 256
 static uint* root;
@@ -147,28 +158,97 @@ void page_table_map(int pid, uint vpage_no, uint ppage_id) {
      *
      * (2) After building page tables for pid (or if page tables for pid exist),
      *     update the page tables and map vpage_no to ppage_id based on Sv32. */
-    soft_tlb_map(pid, vpage_no, ppage_id);
+    // soft_tlb_map(pid, vpage_no, ppage_id);
+
+    // If page tables to not exist, build them
+    if (!pid_to_pagetable_base[pid]) {
+        if (pid < GPID_USER_START) {
+            pagetable_identity_map(pid);
+            setup_identity_region(pid, RAM_START, 512, USER_RWX);
+            setup_identity_region(pid, APPS_ENTRY, 512, USER_RWX);
+            setup_identity_region(pid, APPS_PAGES_BASE, 512, USER_RWX);
+        } else {
+            /* Allocate the root page table. */
+            uint ppage_id                 = earth->mmu_alloc();
+            root                          = (void*)PAGE_ID_TO_ADDR(ppage_id);
+            page_info_table[ppage_id].pid = pid;
+            pid_to_pagetable_base[pid]    = root;
+            memset(root, 0, PAGE_SIZE);
+
+            setup_identity_region(pid, SHELL_WORK_DIR, 1, USER_RWX);
+        }
+    }
+
+
+    // 2. Map vpage_no to ppage_id
+    uint vpn1 = vpage_no >> 10;
+    uint vpn0 = vpage_no & 0x3FF;
+
+    root = pid_to_pagetable_base[pid];
+
+    if (root[vpn1] & 0x1) {
+        /* Leaf has been allocated. */
+        leaf = (void*)((root[vpn1] << 2) & 0xFFFFF000);
+    } else {
+        /* Allocate the leaf page table. */
+        uint ppage_id                 = earth->mmu_alloc();
+        leaf                          = (void*)PAGE_ID_TO_ADDR(ppage_id);
+        page_info_table[ppage_id].pid = pid;
+        memset(leaf, 0, PAGE_SIZE);
+        root[vpn1] = ((uint)leaf >> 2) | 0x1;
+    }
+
+    leaf[vpn0] = ((uint)(PAGE_ID_TO_ADDR(ppage_id)) >> 2) | USER_RWX;
+    page_info_table[ppage_id].pid = pid;
+    page_info_table[ppage_id].vpage_no = vpage_no;
 
     /* Student's code ends here. */
 }
 
 void page_table_switch(int pid) {
     /* Student's code goes here (Virtual Memory). */
+    if (pid >= MAX_NPROCESS) FATAL("page_table_switch: pid too large");
+
+    if (!pid_to_pagetable_base[pid]) FATAL("page_table_switch: page tables not initialised for pid");
 
     /* Remove the soft_tlb_switch below and, instead, update the page table
      * base register (satp) using the value of pid_to_pagetable_base[pid].
      * An example of updating the satp CSR is given in function mmu_init. */
-    soft_tlb_switch(pid);
 
+    // soft_tlb_switch(pid);
+
+    root = pid_to_pagetable_base[pid];
+
+    asm("csrw satp, %0" ::"r"(((uint)root >> 12) | (1 << 31)));
     /* Student's code ends here. */
 }
 
 uint page_table_translate(int pid, uint vaddr) {
+    if (pid >= MAX_NPROCESS) FATAL("page_table_translate: pid too large");
     /* Student's code goes here (Virtual Memory). */
 
     /* Remove the following line of code. Walk through the page tables
      * for process pid and return the physical address mapped from vaddr. */
-    return soft_tlb_translate(pid, vaddr);
+    // return soft_tlb_translate(pid, vaddr);
+    uint offset = vaddr & 0xFFF;
+    uint vpn0 = (vaddr >> 12) & 0x3FF;
+    uint vpn1 = vaddr >> 22;
+    
+    root = pid_to_pagetable_base[pid];
+
+    // Check if root PTE is valid
+    if (!(root[vpn1] & 0x1)) {
+        FATAL("Root PTE not valid for vpn1: %x", vpn1);
+    }
+    
+    leaf = (void*)((root[vpn1] << 2) & 0xFFFFF000);
+    uint paddr = (((leaf[vpn0] << 2) & 0xFFFFF000) | offset);
+
+    if (!(leaf[vpn0] & 0x1)) {
+        FATAL("Leaf PTE not valid for vpn0: %x", vpn0);
+    }
+
+    return paddr;
 
     /* Student's code ends here. */
 }
@@ -203,6 +283,9 @@ void mmu_init() {
 
     /* Replace the PMP region above with a NAPOT region 0x80200000 - 0x80400000
      * and set the permission for user mode access as r/w/x. */
+    // @TODO: commented out for P4
+    // asm("csrw pmpaddr0, %0" : : "r"(0x200BFFFF)); // 2MB region starting at 0x80200000
+    // asm("csrw pmpcfg0, %0" : : "r"(0x1F)); // NAPOT r/w/x ,8-bit L00AAXWR, we want 00011111 = 0x1F
 
     /* Student's code ends here. */
 

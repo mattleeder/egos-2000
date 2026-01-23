@@ -68,6 +68,9 @@ int main(int unused, struct multicore* boot) {
             grass->proc_free(GPID_ALL);
             break;
         /* Student's code goes here (System Call & Protection). */
+        case PROC_SLEEP:
+            grass->proc_sleep(app_pid, req->argc);
+            break;
 
         /* Add a case which handles process sleep. */
 
