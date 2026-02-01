@@ -14,8 +14,26 @@ void mmu_init();
 void intr_init(uint core_id);
 void grass_entry(uint core_id);
 
+extern void init_display();
+
 struct grass* grass = (void*)GRASS_STRUCT;
 struct earth* earth = (void*)EARTH_STRUCT;
+
+static inline void vga_write_reg(uint port, uint index, uint value) {
+    // Write index to port
+    uint addr = VGA_BASE + port + QEMU_VGA_OFFSET;
+    ACCESS((uint *)(addr)) = index;
+    // Write data to port+1
+    ACCESS((uint *)(addr + 1)) = value;
+}
+
+static inline uint vga_read_reg(uint port, uint index) {
+    uint addr = VGA_BASE + port + QEMU_VGA_OFFSET;
+    // Write index to port
+    ACCESS((uint *)(addr + port)) = index;
+    // Read data from port+1
+    return ACCESS((uint *)(addr + 1));
+}
 
 void boot() {
     uint core_id, vendor_id;
@@ -32,19 +50,16 @@ void boot() {
         disk_init();
         SUCCESS("Finished initializing the tty and disk devices");
 
+        earth->disk_test();
+        SUCCESS("Finished testing disk");
+        
+        
         mmu_init();
         intr_init(core_id);
         SUCCESS("Finished initializing the MMU, timer and interrupts");
-
+        
         /* Student's code goes here (I/O Device Driver). */
-
-        /* Initialize QEMU's standard VGA device for apps/user/video_demo.c.
-         * Start with https://www.qemu.org/docs/master/specs/standard-vga.html,
-         * and you could ask ChatGPT about the Bochs Dispi (Display Interface).
-         * Your driver should setup the PCI ECAM for VGA, and then set the VGA
-         * screen resolution to 800*600 pixels, each using 4 bytes for its RGB
-         * information. Lastly, initialize all the pixels with white color. */
-
+        // init_display();
         /* Student's code ends here. */
 
         grass_entry(core_id);
@@ -62,3 +77,4 @@ void boot() {
         /* Student's code ends here. */
     }
 }
+

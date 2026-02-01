@@ -126,6 +126,8 @@ void pagetable_identity_map(int pid) {
     if (earth->platform == QEMU) {
         setup_identity_region(pid, ETH_PCI_ECAM, 1, USER_RWX);
         setup_identity_region(pid, SDHCI_BASE, 1, USER_RWX);
+        setup_identity_region(pid, VGA_BASE, 1, USER_RWX);
+        setup_identity_region(pid, VGA_PCI_ECAM, 1, USER_RWX);
     } else {
         setup_identity_region(pid, SDSPI_BASE, 1, USER_RWX);
         setup_identity_region(pid, WIFI_BASE, 1, USER_RWX);
@@ -286,8 +288,6 @@ void mmu_init() {
     // @TODO: commented out for P4
     // asm("csrw pmpaddr0, %0" : : "r"(0x200BFFFF)); // 2MB region starting at 0x80200000
     // asm("csrw pmpcfg0, %0" : : "r"(0x1F)); // NAPOT r/w/x ,8-bit L00AAXWR, we want 00011111 = 0x1F
-
-    /* Student's code ends here. */
 
     CRITICAL("Choose a memory translation mechanism:");
     printf("Enter 0: page tables\n\rEnter 1: software TLB\n\r");

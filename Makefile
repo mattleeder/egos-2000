@@ -4,6 +4,7 @@
 # BOARD can be arty_a7_35t, arty_a7_100t, arty_s7_50, or tangnano20k
 BOARD       = tangnano20k
 QEMU        = qemu-system-riscv32
+# QEMU		= /root/egos/qemu-5.2.0/build/qemu-system-riscv32
 
 ifeq ($(TOOLCHAIN), GNU)
 # Use the official GNU toolchain.
@@ -25,7 +26,7 @@ RELEASE     = build/release
 APPS_DEPS   = apps/*.* library/egos.h library/*/* Makefile
 EGOS_DEPS   = earth/* grass/* library/egos.h library/*/* Makefile
 
-FILESYS     = 1
+FILESYS     = 0
 LDFLAGS     = -nostdlib -lc -lgcc
 INCLUDE     = -Ilibrary -Ilibrary/elf -Ilibrary/file -Ilibrary/libc -Ilibrary/syscall
 CFLAGS      = -march=rv32ima_zicsr -mabi=ilp32 -Wl,--gc-sections -ffunction-sections -fdata-sections -fdiagnostics-show-option
@@ -59,7 +60,9 @@ install: egos
 	cd tools; rm -f disk.img fpgaROM.bin qemuROM.bin; ./mkfs
 
 QEMU_MACHINE = -M virt -smp 4 -m 8M -bios tools/egos.bin
-QEMU_GRAPHIC = -nographic# -device VGA,addr=0x2 -serial mon:stdio
+# QEMU_GRAPHIC = -device VGA,addr=0x2 -serial mon:stdio #-nographic
+QEMU_GRAPHIC = -device virtio-vga,addr=0x2 -display sdl -serial mon:stdio
+# QEMU_GRAPHIC = -device ramfb -display sdl -serial mon:stdio
 QEMU_FLASH_1 = -drive if=pflash,format=raw,unit=1,file=tools/qemuROM.bin
 QEMU_ETH_NET = -device e1000,netdev=E1000,addr=0x3 -netdev socket,id=E1000,listen=:1234
 QEMU_SD_CARD = -device sdhci-pci,addr=0x1 -device sd-card,drive=MMC -drive if=none,file=tools/disk.img,format=raw,id=MMC

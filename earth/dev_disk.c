@@ -54,6 +54,40 @@ static void sdhci_read(uint offset, char* dst) {
     memcpy(dst, aligned_buf, BLOCK_SIZE);
 }
 
+static void sdhci_multiple_write(uint offset, uint nblocks, char* src) {
+    if(nblocks > 8) FATAL("sdhci_multiple_write: Can only write 8 blocks at a time");
+    /* Prepare DMA (SDMA mode of SDHCI). */
+
+    static __attribute__((aligned(BLOCK_SIZE))) char aligned_buf[8 * BLOCK_SIZE];
+    memcpy(aligned_buf, src, BLOCK_SIZE * nblocks);
+
+    REGW(SDHCI_BASE, SDHCI_DMA_ADDRESS)      = (uint)aligned_buf;
+    REGW(SDHCI_BASE, SDHCI_BLK_CNT_AND_SIZE) = (nblocks << 16) | BLOCK_SIZE;
+    
+#define DATA_PRESENT_FLAG         (1 << 5)
+#define WRITE_WITH_DMA_ENABLE_MODE ((0 << 4) | (1 << 0))
+    offset *= BLOCK_SIZE;
+    sdhci_exec_cmd(25, offset, DATA_PRESENT_FLAG, WRITE_WITH_DMA_ENABLE_MODE);
+    sdhci_exec_cmd(12, 0x0, 0x0, 0x0);
+}
+
+static void sdhci_multiple_read(uint offset, uint nblocks, char* dst) {
+    if(nblocks > 8) FATAL("sdhci_multiple_read: Can only read 8 blocks at a time");
+    /* Prepare DMA (SDMA mode of SDHCI). */
+
+    static __attribute__((aligned(BLOCK_SIZE))) char aligned_buf[8 * BLOCK_SIZE];
+    REGW(SDHCI_BASE, SDHCI_DMA_ADDRESS)      = (uint)aligned_buf;
+    REGW(SDHCI_BASE, SDHCI_BLK_CNT_AND_SIZE) = (nblocks << 16) | BLOCK_SIZE;
+
+#define DATA_PRESENT_FLAG         (1 << 5)
+#define READ_WITH_DMA_ENABLE_MODE ((1 << 4) | (1 << 0))
+
+    offset *= BLOCK_SIZE;
+    sdhci_exec_cmd(18, offset, DATA_PRESENT_FLAG, READ_WITH_DMA_ENABLE_MODE);
+    sdhci_exec_cmd(12, 0x0, 0x0, 0x0);
+    memcpy(dst, aligned_buf, BLOCK_SIZE * nblocks);
+}
+
 static int sdhci_init() {
 #define PCI_ECAM_ALLOW_MMIO_AND_DMA ((1 << 1) | (1 << 2))
     /* Set the PCI ECAM base address register as SDHCI_BASE. */
@@ -128,6 +162,54 @@ static void sdspi_read(uint offset, char* dst) {
     spi_exchange(0xFF);
 }
 
+static void sdspi_multiple_read(uint offset, uint nblocks, char* dst) {
+    INFO("sdspi_multiple_read(%d, %d, %x)", offset, nblocks, dst);
+    /* Wait until SD card is ready for a new command. */
+    while (spi_exchange(0xFF) != 0xFF);
+
+    /* Set block count prior to read with command #23*/
+    char* arg = (void*)&nblocks;
+    char reply, cmd23[] = {23 | (1 << 6), arg[1], arg[0], 0xFF, 0xFF, 0xFF};
+    if (reply = sdspi_exec_cmd(cmd23))
+        FATAL("cmd23 returns status 0x%.2x", reply);
+
+    /* Send a read request with command #18. */
+    arg = (void*)&offset;
+    char cmd18[] = {18 | (1 << 6), arg[3], arg[2], arg[1], arg[0], 0xFF};
+    if (reply = sdspi_exec_cmd(cmd18))
+        FATAL("cmd18 returns status 0x%.2x", reply);
+
+    /* Wait for the data packet and ignore the 2-byte checksum. */
+    while (spi_exchange(0xFF) != 0xFE);
+    for (uint i = 0; i < BLOCK_SIZE; i++) dst[i] = spi_exchange(0xFF);
+    spi_exchange(0xFF);
+    spi_exchange(0xFF);
+}
+
+static void sdspi_multiple_write(uint offset, uint nblocks, char* src) {
+    INFO("sdspi_multiple_write(%d, %d, %x)", offset, nblocks, src);
+    /* Wait until SD card is ready for a new command. */
+    while (spi_exchange(0xFF) != 0xFF);
+
+    /* Set block count prior to read with command #23*/
+    char* arg = (void*)&nblocks;
+    char reply, cmd23[] = {23 | (1 << 6), arg[1], arg[0], 0xFF, 0xFF, 0xFF};
+    if (reply = sdspi_exec_cmd(cmd23))
+        FATAL("cmd23 returns status 0x%.2x", reply);
+
+    /* Send a read request with command #18. */
+    arg = (void*)&offset;
+    char cmd18[] = {18 | (1 << 6), arg[3], arg[2], arg[1], arg[0], 0xFF};
+    if (reply = sdspi_exec_cmd(cmd18))
+        FATAL("cmd18 returns status 0x%.2x", reply);
+
+    /* Wait for the data packet and ignore the 2-byte checksum. */
+    while (spi_exchange(0xFF) != 0xFE);
+    for (uint i = 0; i < BLOCK_SIZE; i++) src[i] = spi_exchange(0xFF);
+    spi_exchange(0xFF);
+    spi_exchange(0xFF);
+}
+
 static int sdspi_init() {
     /* Configure the SPI controller. */
 #define CPU_CLOCK_RATE 100000000 /* 100MHz */
@@ -167,6 +249,7 @@ static int sdspi_init() {
 
 static enum disk_type { SD_CARD, FLASH_ROM } type;
 
+
 void disk_read(uint block_no, uint nblocks, char* dst) {
     if (type == FLASH_ROM) {
         char* src = (char*)FLASH_ROM_BASE + block_no * BLOCK_SIZE;
@@ -178,10 +261,16 @@ void disk_read(uint block_no, uint nblocks, char* dst) {
 
     /* Replace the loop below by reading multiple SD card
      * blocks altogether using the SD card command #18. */
-    for (uint i = 0; i < nblocks; i++)
-        (earth->platform == HARDWARE)
-            ? sdspi_read(block_no + i, dst + BLOCK_SIZE * i)
-            : sdhci_read(block_no + i, dst + BLOCK_SIZE * i);
+    // for (uint i = 0; i < nblocks; i++)
+    //     (earth->platform == HARDWARE)
+    //         ? sdspi_read(block_no + i, dst + BLOCK_SIZE * i)
+    //         : sdhci_read(block_no + i, dst + BLOCK_SIZE * i);
+
+    if (earth->platform == HARDWARE) {
+        sdspi_multiple_read(block_no, nblocks, dst);
+    } else {
+        sdhci_multiple_read(block_no, nblocks, dst);
+    }
 
     /* Student's code ends here. */
 }
@@ -191,13 +280,44 @@ void disk_write(uint block_no, uint nblocks, char* src) {
     /* Student's code goes here (I/O Device Driver). */
 
     /* Implement SD card write using SPI or SDHCI+PCI. */
+    if (earth->platform == HARDWARE) {
+        sdspi_multiple_write(block_no, nblocks, src);
+    } else {
+        sdhci_multiple_write(block_no, nblocks, src);
+    }
 
     /* Student's code ends here. */
+}
+
+void disk_test() {
+    int nblocks = 8;
+    char wbuf[BLOCK_SIZE * nblocks], rbuf[BLOCK_SIZE * nblocks];
+    for (uint i = 0; i < BLOCK_SIZE * nblocks; i++) {
+        wbuf[i] = i % 255;
+    }
+
+    disk_write(0, 1, wbuf);
+    disk_read(0, 1, rbuf);
+
+    for (uint i = 0; i < BLOCK_SIZE; i++) {
+        if (rbuf[i] != wbuf[i]) {
+            FATAL("test_disk failed: rbuf[%d]=%x, wbuf[%d]=%x", i, rbuf[i], i, wbuf[i]);
+        }
+    }
+
+    SUCCESS("disk_test: successful single block read/write");
+
+    disk_write(0, nblocks, wbuf);
+    disk_read(0, nblocks, rbuf);
+
+    SUCCESS("disk_test: successful multi block read/write");
+
 }
 
 void disk_init() {
     earth->disk_read  = disk_read;
     earth->disk_write = disk_write;
+    earth->disk_test = disk_test;
 
     if (earth->platform == QEMU) {
         /* QEMU uses the PCI bus and the SDHCI standard. */

@@ -20,6 +20,7 @@ struct earth {
     uint (*tty_input_empty)();
     void (*disk_read)(uint block_no, uint nblocks, char* dst);
     void (*disk_write)(uint block_no, uint nblocks, char* src);
+    void (*disk_test)();
 
     enum { HARDWARE, QEMU } platform;
     enum { PAGE_TABLE, SOFT_TLB } translation;
@@ -68,10 +69,14 @@ extern struct grass* grass;
 #define CLINT_BASE       (earth->platform == QEMU ? 0x02000000UL : 0xF0010000UL)
 #define FLASH_ROM_BASE   (earth->platform == QEMU ? 0x22000000UL : 0x20400000UL)
 #define VIDEO_FRAME_BASE (earth->platform == QEMU ? 0x42000000UL : 0x80600000UL)
+#define VGA_PCI_ECAM     0x30010000UL /* QEMU     */
+#define VGA_BASE         0x50000000UL
+#define QEMU_VGA_OFFSET 0x400 - 0x3C0
 
 /* Below are some common macros/declarations for I/O, multicore and printing. */
 #define ACCESS(x)          (*(__typeof__(*x) volatile*)(x))
 #define REGW(base, offset) (ACCESS((uint*)(base + offset)))
+#define REGHW(base, offset) (ACCESS((ushort*)(base + offset)))
 #define REGB(base, offset) (ACCESS((uchar*)(base + offset)))
 
 #define NCORES     4
