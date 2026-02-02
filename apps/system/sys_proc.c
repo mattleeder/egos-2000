@@ -23,8 +23,17 @@ int main(int unused, struct multicore* boot) {
 
     /* Student's code goes here (Multicore & Locks). */
 
+    
     /* Release the boot lock, so the other 3 cores can start
-     * to run; Wait for all the 4 cores to finish booting. */
+    * to run; Wait for all the 4 cores to finish booting. */
+    CRITICAL("Waiting for other cores to boot");
+    release(boot->boot_lock);
+    // Once core_cnt == 4 and boot_lock is released then all cores have finished booting
+    while (boot->booted_core_cnt < 4 || boot->boot_lock != 0) {
+        
+    }
+    SUCCESS("All four cores booted");
+
 
     /* Student's code ends here. */
 
@@ -70,6 +79,10 @@ int main(int unused, struct multicore* boot) {
         /* Student's code goes here (System Call & Protection). */
         case PROC_SLEEP:
             grass->proc_sleep(app_pid, req->argc);
+            break;
+
+        case PROC_CORESINFO:
+            grass->proc_coresinfo();
             break;
 
         /* Add a case which handles process sleep. */

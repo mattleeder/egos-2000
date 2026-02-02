@@ -26,6 +26,7 @@ void grass_entry(uint core_id) {
 
     /* Initialize the grass interface for proc_sleep() or proc_coresinfo(). */
     grass->proc_sleep     = proc_sleep;
+    grass->proc_coresinfo = proc_coresinfo;
 
     /* Student's code ends here. */
 

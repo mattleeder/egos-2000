@@ -91,7 +91,6 @@ int fat_walk(inode_intf below, int steps, struct entry **fat_entry, struct fat_t
 
         fat_block_number = get_fat_entry_block_number((*fat_entry)->next);
         if(below->read(below, 0, fat_block_number, (block_t *)fat_block) < 0) {
-            printf("BAD\b");
             return -1;
         }
 
@@ -103,7 +102,6 @@ int fat_walk(inode_intf below, int steps, struct entry **fat_entry, struct fat_t
 
 int mydisk_read(inode_intf self, uint ino, uint offset, block_t* block) {
     /* Student's code goes here (File System). */
-    printf("mydisk_read: called with (%x, %d, %d, %x)\n", self, ino, offset, block);
 
     /* Replace the code below with your own file system read logic. */
     inode_intf below = self->state;
@@ -141,7 +139,6 @@ int mydisk_read(inode_intf self, uint ino, uint offset, block_t* block) {
 
 int mydisk_write(inode_intf self, uint ino, uint offset, block_t* block) {
     /* Student's code goes here (File System). */
-    printf("\nmydisk_write: called with (%x, %d, %d, %x)\n", self, ino, offset, block);
 
     inode_intf below = self->state;
     
@@ -392,7 +389,6 @@ int mydisk_setsize(inode_intf self, uint ino, uint nblocks) {
 
 int mydisk_create(inode_intf below, uint below_ino, uint ninodes) {
     /* Student's code goes here (File System). */
-    printf("mydisk_create(%x, %d, %d) \n", below, below_ino, ninodes);
 
     uint nblocks = (*below->getsize)(below, below_ino);
     float fat_entry_to_block_size_ratio = BLOCK_SIZE / sizeof(struct entry);
@@ -417,11 +413,6 @@ int mydisk_create(inode_intf below, uint below_ino, uint ninodes) {
         SB.fblock_count     = fblock_count;
         SB.iblock_count     = iblock_count;
         SB.head             = 0;
-
-        printf("fblock_count: %d\n", SB.fblock_count);
-        printf("iblock_count: %d\n", SB.iblock_count);
-        printf("dblock_count: %d\n", remaining_block_count);
-        printf("total_count: %d\n", nblocks);
 
         if (below->write(below, below_ino, 0, (block_t *)&SB)) {
             return -1;
@@ -457,7 +448,7 @@ int mydisk_create(inode_intf below, uint below_ino, uint ninodes) {
                 } else {
                     fb.entries[j].next = -1;
                 }
-                // printf("fat entry %d points to %d, there are %d blocks remaining\n", (i * FAT_ENTRIES_PER_BLOCK) + j, fb.entries[j], remaining_block_count);
+
             }
 
             if (below->write(below, below_ino, 1 + iblock_count + i, (block_t *)&fb) < 0) {

@@ -24,6 +24,19 @@ trap_entry:
     /* Acquire the kernel lock and make sure not to modify any registers, */
     /* so you may need to use sscratch just like how Step2 uses mscratch. */
 
+    csrw sscratch, t0
+    csrw mscratch, t1
+
+spin_acquire:
+    la t0, kernel_lock
+    li t1, 1
+    amoswap.w.aq  t1, t1, (t0)
+    bnez t1, spin_acquire
+
+    csrr t0, sscratch
+    csrr t1, mscratch
+
+
     /* Student's code ends here. */
 
     /* Step2 */
@@ -107,6 +120,18 @@ trap_entry:
     /* Student's code goes here (Multicore & Locks). */
     /* Release the kernel lock and make sure not to modify any registers, */
     /* so you may need to use sscratch just like how Step2 uses mscratch. */
+
+    csrw sscratch, t0
+    csrw mscratch, t1
+
+spin_release:
+    la t0, kernel_lock
+    li t1, 0
+    amoswap.w.rl  t1, t1, (t0)
+    beqz t1, spin_release
+
+    csrr t0, sscratch
+    csrr t1, mscratch
 
     /* Student's code ends here. */
 

@@ -155,6 +155,39 @@ void proc_sleep(int pid, uint usec) {
 
 void proc_coresinfo() {
     /* Student's code goes here (Multicore & Locks). */
+    uint pid;
+    for (int i = 0; i < NCORES; i++) {
+        pid = core_to_proc_idx[i];
+        char* buf;
+
+        switch (pid) {
+        case 0:
+            buf = " (GPID_UNUSED)";
+            break;
+        
+        case 1:
+            buf = " (GPID_PROCESS)";
+            break;
+
+        case 2:
+            buf = " (GPID_TERMINAL)";
+            break;
+
+        case 3:
+            buf = " (GPID_FILE)";
+            break;
+
+        case 4:
+            buf = " (GPID_SHELL)";
+            break;
+        
+        default:
+            buf = "";
+            break;
+        }
+
+        INFO("Core #%d is running pid=%d%s", i + 1, pid, buf);
+    }
 
     /* Print out the pid of the process running on each CPU core. */
 

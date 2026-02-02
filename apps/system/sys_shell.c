@@ -33,6 +33,8 @@ int main() {
 
         if (strcmp(buf, "coresinfo") == 0) {
             /* Student's code goes here (Multicore & Locks). */
+            req.type = PROC_CORESINFO;
+            grass->sys_send(GPID_PROCESS, (void*)&req, sizeof(req));
 
             /* Add proc_coresinfo() from process.c into the grass interface;
              * Invoke proc_coresinfo() to show the pid running on each core. */

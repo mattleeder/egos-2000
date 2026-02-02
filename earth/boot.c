@@ -11,29 +11,15 @@
 void tty_init();
 void disk_init();
 void mmu_init();
+void post_boot_mmu_init();
 void intr_init(uint core_id);
+void post_boot_intr_init(uint core_id);
 void grass_entry(uint core_id);
 
 extern void init_display();
 
 struct grass* grass = (void*)GRASS_STRUCT;
 struct earth* earth = (void*)EARTH_STRUCT;
-
-static inline void vga_write_reg(uint port, uint index, uint value) {
-    // Write index to port
-    uint addr = VGA_BASE + port + QEMU_VGA_OFFSET;
-    ACCESS((uint *)(addr)) = index;
-    // Write data to port+1
-    ACCESS((uint *)(addr + 1)) = value;
-}
-
-static inline uint vga_read_reg(uint port, uint index) {
-    uint addr = VGA_BASE + port + QEMU_VGA_OFFSET;
-    // Write index to port
-    ACCESS((uint *)(addr + port)) = index;
-    // Read data from port+1
-    return ACCESS((uint *)(addr + 1));
-}
 
 void boot() {
     uint core_id, vendor_id;
@@ -68,11 +54,24 @@ void boot() {
 
         /* Student's code goes here (Multicore & Locks). */
 
+        if (earth->translation == SOFT_TLB) {
+            FATAL("Requires page table translation for multicore usage");
+        }
+
+        
         /* Initialize the MMU and interrupts on this CPU core.
-         * Read mmu_init() and intr_init(), and decide what to do here. */
+        * Read mmu_init() and intr_init(), and decide what to do here. */
+        post_boot_mmu_init();
+        post_boot_intr_init(core_id);
+        SUCCESS("Finished initializing the MMU, timer and interrupts");
 
         /* Reset the timer, release the boot lock, and then hang the core
            by waiting for a timer interrupt using the wfi instruction. */
+        earth->timer_reset(core_id);
+        release(boot_lock);
+        CRITICAL("Core %d wfi", core_id);
+        asm("wfi");
+        CRITICAL("Core %d intterupt received", core_id);
 
         /* Student's code ends here. */
     }

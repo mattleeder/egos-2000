@@ -312,3 +312,14 @@ void mmu_init() {
         earth->mmu_translate = soft_tlb_translate;
     }
 }
+
+void post_boot_mmu_init() {
+    /* Setup a PMP region for the whole 4GB address space. */
+    asm("csrw pmpaddr0, %0" : : "r"(0x40000000));
+    asm("csrw pmpcfg0, %0" : : "r"(0xF));
+
+
+    /* Setup an identity map using page tables. */
+    // pagetable_identity_map(0);
+    asm("csrw satp, %0" ::"r"(((uint)root >> 12) | (1 << 31)));
+}

@@ -164,6 +164,10 @@ static void proc_yield() {
             * Set curr_proc_idx to 0; Reset the timer;
             * Enable interrupts by setting the mstatus.MIE bit to 1;
             * Wait for the next interrupt using the wfi instruction. */
+           release(kernel_lock);
+           curr_proc_idx = 0;
+           earth->timer_reset(core_in_kernel);
+           asm("wfi");
         }
     }
     /* Student's code ends here. */

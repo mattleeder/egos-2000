@@ -37,6 +37,7 @@ struct grass {
 
     /* Add interface functions for process sleep and multicore information. */
     void (*proc_sleep)(int pid, uint usec);
+    void (*proc_coresinfo)();
 
     /* Student's code ends here. */
 };
