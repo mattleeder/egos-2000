@@ -82,7 +82,6 @@ static void excp_entry(uint id) {
 }
 
 static void intr_entry(uint id) {
-    if (id != INTR_ID_TIMER) FATAL("excp_entry: kernel got interrupt %d", id);
     /* Student's code goes here (Preemptive Scheduler). */
 
     /* Update the process lifecycle statistics. */
@@ -90,7 +89,18 @@ static void intr_entry(uint id) {
     curr_proc->interrupt_count++;
 
     /* Student's code ends here. */
-    proc_yield();
+
+    if (id == INTR_ID_TIMER) return proc_yield();
+
+    /* Student's code goes here (Ethernet & TCP/IP). */
+
+    /* Handle an external interrupt from the Intel Gigabit Ethernet Controller.
+     * Specifically, you need to (1) Claim the PLIC interrupt; (2) Check if the
+     * interrupt is for receiving an Ethernet frame; (3) Read the received frame
+     * from an RX buffer and print the content; (4) Complete the PLIC interrupt,
+     * so PLIC can fire the next interrupt; (5) Call proc_yield() and return. */
+
+    /* Student's code ends here. */
 }
 
 static void proc_yield() {

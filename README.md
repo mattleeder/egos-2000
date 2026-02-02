@@ -15,12 +15,12 @@ github.com/AlDanial/cloc v 1.94  T=0.05 s (949.3 files/s, 62349.4 lines/s)
 -------------------------------------------------------------------------------
 Language                     files          blank        comment           code
 -------------------------------------------------------------------------------
-C                               30            435            624           1593
-C/C++ Header                     9             61             99            257
+C                               30            450            659           1592
+C/C++ Header                     9             64            105            258
 Assembly                         3             14             46             92
-make                             1             16              7             58
+make                             1             17             10             58
 -------------------------------------------------------------------------------
-SUM:                            43            526            776           2000 (exactly!)
+SUM:                            43            545            820           2000 (exactly!)
 -------------------------------------------------------------------------------
 ```
 
@@ -46,5 +46,6 @@ Many thanks to [Robbert van Renesse](https://www.cs.cornell.edu/home/rvr/), [Lor
 Many thanks to [Cheng Tan](https://naizhengtan.github.io/) and [Yu-Ju Huang](https://yuju-huang.github.io/) for providing valuable feedback to the EGOS book and using egos-2000 in [Northeastern CS4973/6640](https://naizhengtan.github.io/25spring/) and [Cornell CS4411/5411](https://www.cs.cornell.edu/courses/cs4411/2025sp/).
 Many thanks to [Haobin Ni](https://haobin.cx/) and [Hongbo Zhang](https://www.cs.cornell.edu/~hongbo/) for [porting egos-2000 to mriscv](https://github.com/0x486F626F/mriscv/tree/egos), a simple processor written in SystemVerilog.
 Many thanks to [Brandon Fusi](https://www.linkedin.com/in/brandon-cheo-fusi-b94b1a171/) for [porting egos-2000 to Allwinner D1](https://github.com/cheofusi/egos-2000-d1) and Sipeed's [Lichee RV64 Nezha compute module](https://wiki.sipeed.com/hardware/en/lichee/RV/RV.html).
+Many thanks to [Zack Light](https://zacklight.com/) for making [a Youtube video](https://www.youtube.com/watch?v=zPZzq2KO8ew) about egos-2000.
 
 For any questions, please contact [Yunhao Zhang](https://dolobyte.net/).

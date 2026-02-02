@@ -54,7 +54,7 @@ $(USRAPP_ELFS): $(RELEASE)/user/%.elf : apps/user/%.c $(APPS_DEPS)
 	@$(OBJDUMP) $(DEBUG_FLAGS) $@ > $(patsubst %.c, $(DEBUG)/%.lst, $(notdir $<))
 
 install: egos
-	@printf "$(GREEN)-------- Create the Disk & ROM Images --------$(END)\n"
+	@printf "$(YELLOW)-------- Create the Disk & ROM Images --------$(END)\n"
 	$(OBJCOPY) -O binary $(RELEASE)/egos.elf tools/egos.bin
 	$(CC) tools/mkfs.c library/file/file$(FILESYS).c -DMKFS -DFILESYS=$(FILESYS) -DCPU_BIN_FILE="\"fpga/$(BOARD).bin\"" $(INCLUDE) -o tools/mkfs
 	cd tools; rm -f disk.img fpgaROM.bin qemuROM.bin; ./mkfs
@@ -64,8 +64,13 @@ QEMU_MACHINE = -M virt -smp 4 -m 8M -bios tools/egos.bin
 QEMU_GRAPHIC = -device virtio-vga,addr=0x2 -display sdl -serial mon:stdio
 # QEMU_GRAPHIC = -device ramfb -display sdl -serial mon:stdio
 QEMU_FLASH_1 = -drive if=pflash,format=raw,unit=1,file=tools/qemuROM.bin
-QEMU_ETH_NET = -device e1000,netdev=E1000,addr=0x3 -netdev socket,id=E1000,listen=:1234
 QEMU_SD_CARD = -device sdhci-pci,addr=0x1 -device sd-card,drive=MMC -drive if=none,file=tools/disk.img,format=raw,id=MMC
+
+# On MacOS, QEMU creates and uses a virtual Ethernet device using vmnet.
+# On Linux, we manually create a virtual Ethernet device using bridge-utils.
+# Then QEMU will use this virtual Ethernet device through qemu-bridge-helper.
+QEMU_ETHERNET_MACOS = -device e1000,netdev=E1000,addr=0x3 -netdev vmnet-host,id=E1000
+QEMU_ETHERNET_LINUX = -device e1000,netdev=E1000,addr=0x3 -netdev tap,id=E1000,br=virbr0,helper=/usr/lib/qemu/qemu-bridge-helper
 
 qemu: install
 	@printf "$(YELLOW)-------- Simulate on QEMU-RISCV --------$(END)\n"
@@ -76,9 +81,8 @@ program: install
 	openFPGALoader -b $(BOARD) -f tools/fpgaROM.bin
 
 clean:
-	rm -rf build tools/egos.bin tools/mkfs tools/disk.img tools/fpgaROM.bin tools/qemuROM.bin hello.bin hello.lst hello.elf thread.bin thread.lst thread.elf
+	rm -rf build tools/egos.bin tools/mkfs tools/disk.img tools/fpgaROM.bin tools/qemuROM.bin hello.* thread.*
 
-GREEN = \033[1;32m
 YELLOW = \033[1;33m
 CYAN = \033[1;36m
 END = \033[0m

@@ -11,15 +11,21 @@
 
 #include "app.h"
 
-#define HELLO_MSG "Hello from egos-2000!\n\r"
-
-/* Define the Mac addresses, IP addresses and UDP ports. */
-#define LOCAL_MAC           {0x10, 0xe2, 0xd5, 0x00, 0x00, 0x00}
-#define DEST_MAC            {0x98, 0x48, 0x27, 0x51, 0x53, 0x1e}
+#define HELLO_MSG           "Hello from egos-2000!\n\r"
 #define IPTOINT(a, b, c, d) ((a << 24) | (b << 16) | (c << 8) | d)
 
-uint dest_ip = IPTOINT(192, 168, 0, 212), dest_udp_port = 8002;
-uint local_ip = IPTOINT(192, 168, 1, 50), local_udp_port = 8001;
+/* Student's code goes here (TCP/IP & the Web). */
+
+/* Update the destination MAC address, IP address, and UDP port so
+ * that this demo works in QEMU on your MacOS or Linux. If needed,
+ * you can further update the local MAC/IP addresses and UDP port. */
+
+#define DEST_MAC  {0xae, 0xc9, 0x06, 0x72, 0xb2, 0x64}
+#define LOCAL_MAC {0x52, 0x54, 0x00, 0x12, 0x34, 0x56}
+uint dest_ip = IPTOINT(192, 168, 18, 1), dest_udp_port = 8002;
+uint local_ip = IPTOINT(192, 168, 18, 2), local_udp_port = 8001;
+
+/* Student's code ends here. */
 
 /* Define the data structures for an Ethernet frame. */
 struct ethernet_header {
@@ -64,9 +70,7 @@ struct checksum_fields {
 } __attribute__((packed));
 
 static ushort checksum(uint r, char* ptr, uint length, int complete) {
-    length >>= 1;
-
-    for (int i = 0; i < length; i++)
+    for (int i = 0; i < length / 2; i++)
         r += ((uint)(ptr[2 * i]) << 8) | (uint)(ptr[2 * i + 1]);
 
     /* Add overflows */
@@ -103,8 +107,7 @@ int main() {
     };
     /* clang-format on */
 
-    /* Setup payload. */
-    if (sizeof(HELLO_MSG) & 1) FATAL("Please send a message with even length");
+    /* Setup payload: eth_frame.payload needs to have an even length. */
     memcpy(eth_frame.payload, HELLO_MSG, sizeof(HELLO_MSG));
 
     /* Calculate the IP checksum. */
